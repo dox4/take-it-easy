@@ -2,6 +2,10 @@
 import { ref } from "vue"
 import { Address4, Address6 } from "ip-address"
 
+const ipCount = (cidr: Address4 | Address6) => {
+  const exp = (cidr.v4 ? 32 : 128) - cidr.subnetMask
+  return exp >= 53 ? 2n ** BigInt(exp) : BigInt(2 ** exp)
+}
 class ParseCidrInfo {
   canonical: string = ""
   gateway: string = "" // default gateway
@@ -9,17 +13,17 @@ class ParseCidrInfo {
   available0: string = "" // last available ip address, previous to broadcast
   broadcast: string = "" // broadcast ip
   count: string = "" // ip count in cidr
+  available: string = "" // available ip count in cidr
   update(cidr: Address4 | Address6) {
+    const cnt = ipCount(cidr)
     const start = cidr.startAddress()
     this.canonical = start.correctForm() + "/" + cidr.subnetMask
     this.gateway = start.correctForm()
-    this.available1 = cidr.startAddressExclusive().correctForm()
-    this.available0 = cidr.endAddressExclusive().correctForm()
+    this.available1 = cnt < 3 ? "-" : cidr.startAddressExclusive().correctForm()
+    this.available0 = cnt < 3 ? "-" : cidr.endAddressExclusive().correctForm()
     this.broadcast = cidr.endAddress().correctForm()
-    this.count = (function () {
-      const exp = (cidr.v4 ? 32 : 128) - cidr.subnetMask
-      return exp < 2 ? BigInt(0) : (exp >= 53 ? 2n ** BigInt(exp) : BigInt(2 ** exp)) - 3n
-    })().toLocaleString()
+    this.count = cnt.toLocaleString()
+    this.available = (cnt > 3 ? cnt - 3n : 0n).toLocaleString()
   }
 }
 const info = ref(new ParseCidrInfo())
@@ -87,8 +91,12 @@ const parseCidr = (value: string) => {
           <n-input class="width-with-label" disabled placeholder="" v-model:value="info.broadcast"></n-input>
         </n-input-group>
         <n-input-group>
-          <n-input-group-label class="input-label"> 可用IP数量 </n-input-group-label>
+          <n-input-group-label class="input-label"> 总IP数量 </n-input-group-label>
           <n-input class="width-with-label" disabled placeholder="" v-model:value="info.count"></n-input>
+        </n-input-group>
+        <n-input-group>
+          <n-input-group-label class="input-label"> 可用IP数量 </n-input-group-label>
+          <n-input class="width-with-label" disabled placeholder="" v-model:value="info.available"></n-input>
         </n-input-group>
       </n-flex>
     </n-gi>
